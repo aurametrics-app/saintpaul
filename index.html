@@ -732,6 +732,15 @@ var App = { usuario:null };
 var LS_KEY = 'ev_charge_creds';
 var _qrScanner = null, _qrProcessing = false, _cbCounter = 0;
 
+// Gera uma chave única por tentativa de ação — é o que permite o backend
+// reconhecer "essa é a mesma tentativa de novo" (sinal ruim, resposta
+// perdida) e não duplicar a ação. crypto.randomUUID existe na grande
+// maioria dos navegadores modernos; o fallback cobre os raros que não têm.
+function gerarChaveIdempotencia() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'k' + Date.now() + '_' + Math.random().toString(36).slice(2);
+}
+
 function api(action, params) {
   return new Promise(function(resolve, reject) {
     // Injeta o token de sessão automaticamente em toda chamada (exceto login
@@ -796,8 +805,10 @@ function efetuarLogin() {
   erroEl.classList.add('oculto');
   if(!email||!senha){erroEl.textContent='Preencha email e senha.';erroEl.classList.remove('oculto');return;}
   btn.disabled=true;btn.querySelector('.btn-txt').classList.add('oculto');btn.querySelector('.btn-load').classList.remove('oculto');
+  var avisoLento = setTimeout(function(){ btn.querySelector('.btn-load').textContent = 'Primeira conexão pode demorar um pouco...'; }, 3000);
   api('fazerLogin',{email:email,senha:senha})
     .then(function(res){
+      clearTimeout(avisoLento); btn.querySelector('.btn-load').textContent = 'Aguarde...';
       btn.disabled=false;btn.querySelector('.btn-txt').classList.remove('oculto');btn.querySelector('.btn-load').classList.add('oculto');
       if(res.erro){erroEl.textContent=res.erro;erroEl.classList.remove('oculto');return;}
       App.usuario=res;
@@ -813,7 +824,7 @@ function efetuarLogin() {
       _trocaSenhaObrigatoria=false;
       entrarDashboard();
     })
-    .catch(function(err){btn.disabled=false;btn.querySelector('.btn-txt').classList.remove('oculto');btn.querySelector('.btn-load').classList.add('oculto');erroEl.textContent='Erro: '+(err?err.message:'tente novamente');erroEl.classList.remove('oculto');});
+    .catch(function(err){clearTimeout(avisoLento);btn.querySelector('.btn-load').textContent='Aguarde...';btn.disabled=false;btn.querySelector('.btn-txt').classList.remove('oculto');btn.querySelector('.btn-load').classList.add('oculto');erroEl.textContent='Erro: '+(err?err.message:'tente novamente');erroEl.classList.remove('oculto');});
 }
 
 function fazerLogout(){
@@ -1324,9 +1335,11 @@ function abrirTelaChamado() {
   btn.disabled = false;
   btn.querySelector('.btn-txt').classList.remove('oculto');
   btn.querySelector('.btn-load').classList.add('oculto');
+  _chaveChamadoAtual = gerarChaveIdempotencia(); // 1 chave por "sessão" de preenchimento — reenvio reusa a mesma
   mostrarTela('tela-chamado');
   carregarChamados();
 }
+var _chaveChamadoAtual = null;
 function carregarChamados() {
   var el = document.getElementById('ch-lista');
   el.innerHTML = '<div class="hist-vazio">Carregando...</div>';
@@ -1353,7 +1366,12 @@ function reabrirChamado(numero) {
   if (!confirm('Reabrir o chamado ' + numero + '?')) return;
   api('reabrirChamadoSuporte', { numero: numero })
     .then(function(res) { if (res && res.erro) { alert('Erro: ' + res.erro); return; } carregarChamados(); })
-    .catch(function() { alert('Falha ao reabrir. Tente novamente.'); });
+    .catch(function() {
+      // A proteção contra duplicidade aqui já é automática (chave baseada
+      // no próprio número do chamado) — não precisa nada extra do app.
+      alert('Não recebemos confirmação do servidor (sinal instável). O chamado pode já ter sido reaberto — a lista vai atualizar sozinha.');
+      carregarChamados();
+    });
 }
 function enviarChamado() {
   var assunto = document.getElementById('ch-assunto').value.trim();
@@ -1363,18 +1381,22 @@ function enviarChamado() {
   if (!assunto || !descricao) { erroEl.textContent = 'Preencha o assunto e a descrição.'; erroEl.classList.remove('oculto'); return; }
 
   btn.disabled = true; btn.querySelector('.btn-txt').classList.add('oculto'); btn.querySelector('.btn-load').classList.remove('oculto');
-  api('abrirChamadoSuporte', { assunto: assunto, descricao: descricao })
+  api('abrirChamadoSuporte', { assunto: assunto, descricao: descricao, chaveIdempotencia: _chaveChamadoAtual })
     .then(function(res) {
       btn.disabled = false; btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
       if (!res || res.erro) { erroEl.textContent = res ? res.erro : 'Erro ao enviar.'; erroEl.classList.remove('oculto'); return; }
       msgEl.textContent = '✅ Chamado ' + res.numero + ' aberto! Você será contatado em até 48h (ou antes, se for urgência).'; msgEl.classList.remove('oculto');
       document.getElementById('ch-assunto').value = '';
       document.getElementById('ch-descricao').value = '';
+      _chaveChamadoAtual = gerarChaveIdempotencia(); // próximo chamado (se abrir outro) usa chave nova
       carregarChamados();
     })
     .catch(function(err) {
       btn.disabled = false; btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
-      erroEl.textContent = 'Falha: ' + (err ? err.message : 'tente novamente'); erroEl.classList.remove('oculto');
+      // Sinal ruim pode ter perdido só a resposta — a chave de idempotência
+      // garante que reenviar não abre um segundo chamado igual.
+      erroEl.textContent = 'Não recebemos confirmação do servidor (sinal instável). O chamado pode já ter sido aberto — toque em "Abrir Chamado" de novo, é seguro repetir.';
+      erroEl.classList.remove('oculto');
     });
 }
 
@@ -1410,6 +1432,7 @@ function iniciarScanner(){
 function pararScanner(){if(_qrScanner){_qrScanner.stop().catch(function(){});_qrScanner=null;}_qrProcessing=false;}
 
 var _vagaAtualLeitura = null;
+var _chaveLeituraAtual = null;
 function processarQRCode(texto) {
   var vagaId = texto.trim().toUpperCase();
   if (!/^VAGA_\d+_\d+$/.test(vagaId)) {
@@ -1425,6 +1448,7 @@ function processarQRCode(texto) {
       overlayHide();
       if (!res || res.erro) { alert('Erro: ' + (res ? res.erro : 'falha ao consultar vaga')); voltarParaScanner(); return; }
       _vagaAtualLeitura = vagaId;
+      _chaveLeituraAtual = gerarChaveIdempotencia(); // 1 chave por vaga escaneada — reenvio reusa a mesma
       document.getElementById('rl-vaga').textContent = 'Apto ' + res.apto + ' · Vaga ' + res.numero;
       document.getElementById('rl-ultima').textContent = res.temLeitura ? (fmtBR(res.ultimaLeitura,2) + ' kWh em ' + res.ultimaData) : 'Primeira leitura (baseline)';
       document.getElementById('rl-leitura').value = '';
@@ -1442,7 +1466,7 @@ function enviarLeituraMensal() {
   if (!leitura) { erroEl.textContent = 'Digite a leitura do medidor.'; erroEl.classList.remove('oculto'); return; }
 
   btn.disabled = true; btn.querySelector('.btn-txt').classList.add('oculto'); btn.querySelector('.btn-load').classList.remove('oculto');
-  api('registrarLeituraMensal', { vagaId: _vagaAtualLeitura, leitura: leitura })
+  api('registrarLeituraMensal', { vagaId: _vagaAtualLeitura, leitura: leitura, chaveIdempotencia: _chaveLeituraAtual })
     .then(function(res) {
       btn.disabled = false; btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
       if (!res || res.erro) { erroEl.textContent = res ? res.erro : 'Erro ao registrar.'; erroEl.classList.remove('oculto'); return; }
@@ -1450,7 +1474,11 @@ function enviarLeituraMensal() {
     })
     .catch(function(err) {
       btn.disabled = false; btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
-      erroEl.textContent = 'Falha: ' + (err ? err.message : 'tente novamente'); erroEl.classList.remove('oculto');
+      // Sinal ruim pode ter perdido só a RESPOSTA, não o registro em si — como
+      // a chave de idempotência protege contra duplicar, é seguro apertar de
+      // novo (se já tiver ido, o servidor só devolve o mesmo resultado).
+      erroEl.textContent = 'Não recebemos confirmação do servidor (sinal instável). A leitura pode já ter sido registrada — toque em "Salvar Leitura" de novo, é seguro repetir.';
+      erroEl.classList.remove('oculto');
     });
 }
 
