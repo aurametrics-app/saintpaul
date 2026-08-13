@@ -1538,7 +1538,14 @@ function enviarFotoAoServidor(base64) {
     statusEl.className = 'msg-ok'; statusEl.textContent = '✅ Foto enviada e vinculada à leitura!';
     setTimeout(voltarParaScanner, 1400);
   })
-  .catch(function() { statusEl.className = 'msg-erro'; statusEl.textContent = 'Falha ao enviar a foto. Tente novamente.'; });
+  .catch(function() {
+    // Sinal ruim pode ter perdido só a resposta — a foto já pode estar
+    // salva no Drive. Como o backend usa o idLeitura como chave de
+    // idempotência, é seguro tocar em "Enviar Foto" de novo: se já tiver
+    // ido, não duplica, só confirma o mesmo resultado.
+    statusEl.className = 'msg-erro';
+    statusEl.textContent = 'Não recebemos confirmação do servidor (sinal instável). A foto pode já ter sido salva — toque em "Enviar Foto do Medidor" de novo, é seguro repetir.';
+  });
 }
 
 // ══ ADMIN — VALOR DO KWH ═════════════════════════════════════
@@ -1771,4 +1778,6 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
+
+
 
