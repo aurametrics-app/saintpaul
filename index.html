@@ -753,13 +753,31 @@ function api(action, params) {
     }
     var cbName = '_gasCb' + (++_cbCounter);
     var timeout = setTimeout(function() { delete window[cbName]; var s=document.getElementById(cbName); if(s)s.remove(); reject(new Error('Timeout')); }, 90000);
-    window[cbName] = function(data) { clearTimeout(timeout); delete window[cbName]; var s=document.getElementById(cbName); if(s)s.remove(); resolve(data); };
+    window[cbName] = function(data) {
+      clearTimeout(timeout); delete window[cbName]; var s=document.getElementById(cbName); if(s)s.remove();
+      // Sessão expirada detectada em QUALQUER chamada, de qualquer tela —
+      // desloga sozinho em vez de deixar a pessoa "presa" numa tela que não
+      // funciona mais até ela mesma clicar em Sair.
+      if (data && data.erro === 'Sessão expirada. Faça login novamente.' && action !== 'fazerLogin') {
+        tratarSessaoExpirada();
+      }
+      resolve(data);
+    };
     var url = GAS_URL + '?action=' + encodeURIComponent(action) + '&payload=' + encodeURIComponent(JSON.stringify(payload)) + '&callback=' + cbName;
     var script = document.createElement('script');
     script.id = cbName; script.src = url;
     script.onerror = function() { clearTimeout(timeout); delete window[cbName]; script.remove(); reject(new Error('Falha ao contactar o servidor')); };
     document.head.appendChild(script);
   });
+}
+function tratarSessaoExpirada() {
+  if (!App.usuario) return; // já deslogado, evita repetir
+  App.usuario = null;
+  pararScanner();
+  mostrarTela('tela-login');
+  var erroEl = document.getElementById('login-erro');
+  erroEl.textContent = 'Sua sessão expirou por segurança. Faça login novamente.';
+  erroEl.classList.remove('oculto');
 }
 
 window.addEventListener('load', function() { aplicarConfiguracaoVisual(); mostrarTela('tela-login'); carregarCredenciais(); mostrarHintPWA(); });
@@ -1527,18 +1545,28 @@ function processarFotoSelecionada(inputEl) {
 function enviarFotoAoServidor(base64) {
   var statusEl = document.getElementById('foto-status');
   statusEl.className = ''; statusEl.textContent = 'Enviando foto...';
+  // Sem timeout aqui, uma conexão que trava (nem erro, nem resposta) deixa
+  // a tela presa pra sempre em "Enviando..." — foi exatamente o que
+  // aconteceu. O AbortController força uma desistência depois de 45s.
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 45000);
   fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'salvarFotoLeitura', sessionToken: App.usuario ? App.usuario.sessionToken : null, vagaId: _vagaFotoPendente, data: _dataFotoPendente, imagemBase64: base64, idLeitura: _idLeituraPendente })
+    body: JSON.stringify({ action: 'salvarFotoLeitura', sessionToken: App.usuario ? App.usuario.sessionToken : null, vagaId: _vagaFotoPendente, data: _dataFotoPendente, imagemBase64: base64, idLeitura: _idLeituraPendente }),
+    signal: controller.signal
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { clearTimeout(timeoutId); return r.json(); })
   .then(function(res) {
-    if (!res || res.erro) { statusEl.className = 'msg-erro'; statusEl.textContent = res ? res.erro : 'Erro ao enviar foto.'; return; }
+    if (!res || res.erro) {
+      if (res && res.erro === 'Sessão expirada. Faça login novamente.') { tratarSessaoExpirada(); return; }
+      statusEl.className = 'msg-erro'; statusEl.textContent = res ? res.erro : 'Erro ao enviar foto.'; return;
+    }
     statusEl.className = 'msg-ok'; statusEl.textContent = '✅ Foto enviada e vinculada à leitura!';
     setTimeout(voltarParaScanner, 1400);
   })
   .catch(function() {
+    clearTimeout(timeoutId);
     // Sinal ruim pode ter perdido só a resposta — a foto já pode estar
     // salva no Drive. Como o backend usa o idLeitura como chave de
     // idempotência, é seguro tocar em "Enviar Foto" de novo: se já tiver
@@ -1712,10 +1740,13 @@ function mostrarResultadoVaga(res) {
 
       // Salva no Drive (Apto_XXX/QR_codes) já com o rótulo embutido na imagem.
       var base64 = compositeDataUrl.split(',')[1];
+      var qrController = new AbortController();
+      setTimeout(function() { qrController.abort(); }, 45000);
       fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'salvarQRCodeImagem', sessionToken: App.usuario ? App.usuario.sessionToken : null, apto: res.apto, numero: res.numero, imagemBase64: base64 })
+        body: JSON.stringify({ action: 'salvarQRCodeImagem', sessionToken: App.usuario ? App.usuario.sessionToken : null, apto: res.apto, numero: res.numero, imagemBase64: base64 }),
+        signal: qrController.signal
       }).catch(function() { /* salvamento no Drive é um "bônus" - não trava o fluxo se falhar */ });
     };
     qrImg.src = qrDataUrl;
@@ -1778,6 +1809,5 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
-
 
 
