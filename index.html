@@ -111,6 +111,7 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
 .btn-remover:active{opacity:.7}
 .admin-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px}
 .admin-modal-overlay.oculto{display:none!important}
+.custo-ajuda{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--k-green-dim);color:var(--k-green);font-size:12px;font-weight:700;cursor:pointer;vertical-align:middle;margin-left:4px}
 .admin-modal-box{background:#111;border:1px solid rgba(var(--k-green-rgb),.2);border-radius:var(--r);padding:24px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .admin-modal-titulo{font-family:var(--f-display);font-size:26px;letter-spacing:.04em;color:var(--k-green);text-align:center}
 .menu-admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -530,12 +531,16 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
       <div class="campo"><label>Mês de referência</label><div class="leitura-vaga-display" id="vk-mes">–</div></div>
       <div class="campo"><label>Valor já definido (se houver)</label><div class="leitura-vaga-display" id="vk-atual">–</div></div>
       <div class="campo">
-        <label>Valor do kWh (R$)</label>
-        <input type="text" id="vk-valor" placeholder="Ex: 0,85" inputmode="decimal" oninput="validarValorKwh()">
+        <label>Valor do Boleto Click Livre (R$) <span class="custo-ajuda" onclick="abrirFotoAjuda('ajuda_clicklivre_valor.jpg')">?</span></label>
+        <input type="text" id="vk-valor-boleto" placeholder="Ex: 4.250,00" inputmode="decimal" oninput="recalcularValorKwh()">
       </div>
       <div class="campo">
-        <label>Confirme o valor do kWh (R$)</label>
-        <input type="text" id="vk-valor-conf" placeholder="Repita o valor" inputmode="decimal" oninput="validarValorKwh()">
+        <label>Quantidade kWh Click Livre (kWh) <span class="custo-ajuda" onclick="abrirFotoAjuda('ajuda_clicklivre_kwh.jpg')">?</span></label>
+        <input type="text" id="vk-qtd-kwh" placeholder="Ex: 5.000" inputmode="decimal" oninput="recalcularValorKwh()">
+      </div>
+      <div class="campo">
+        <label>Valor kWh Calculado (R$/kWh)</label>
+        <div class="leitura-vaga-display" id="vk-calculado" style="font-weight:700;color:var(--k-green)">–</div>
       </div>
       <div id="vk-erro" class="msg-erro oculto"></div>
       <div id="vk-msg" class="msg-ok oculto"></div>
@@ -545,8 +550,17 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
       </button>
     </div>
     <p style="font-size:13px;color:var(--txt-sub);line-height:1.7;padding:0 4px">
-      Só é possível definir o valor do mês de cobrança atual. Meses já fechados ficam protegidos e não podem ser alterados por aqui.
+      Só é possível definir o valor do mês de cobrança atual. Meses já fechados ficam protegidos e não podem ser alterados por aqui. O valor do kWh é calculado automaticamente (Valor do Boleto ÷ Quantidade de kWh).
     </p>
+  </div>
+</div>
+
+<!-- MODAL FOTO DE AJUDA (mostra onde encontrar o valor na fatura) -->
+<div id="modal-foto-ajuda" class="admin-modal-overlay oculto" onclick="if(event.target===this)fecharFotoAjuda()">
+  <div style="max-width:92vw;max-height:85vh;display:flex;flex-direction:column;align-items:center;gap:14px">
+    <img id="foto-ajuda-img" src="" style="max-width:100%;max-height:75vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.6)" onerror="document.getElementById('foto-ajuda-erro').classList.remove('oculto')">
+    <p id="foto-ajuda-erro" class="oculto" style="color:#ff8080;font-size:14px;text-align:center">Imagem de ajuda ainda não disponível.</p>
+    <button class="btn-secundario" style="width:200px" onclick="fecharFotoAjuda()">Fechar</button>
   </div>
 </div>
 
@@ -1583,8 +1597,9 @@ function enviarFotoAoServidor(base64) {
 function abrirTelaValorKwh() {
   document.getElementById('vk-mes').textContent = '–';
   document.getElementById('vk-atual').textContent = '–';
-  document.getElementById('vk-valor').value = '';
-  document.getElementById('vk-valor-conf').value = '';
+  document.getElementById('vk-valor-boleto').value = '';
+  document.getElementById('vk-qtd-kwh').value = '';
+  document.getElementById('vk-calculado').textContent = '–';
   document.getElementById('vk-erro').classList.add('oculto');
   document.getElementById('vk-msg').classList.add('oculto');
   document.getElementById('btn-vk-salvar').disabled = true;
@@ -1595,29 +1610,52 @@ function abrirTelaValorKwh() {
     document.getElementById('vk-atual').textContent = res.valorAtual != null ? ('R$ ' + fmtBR(res.valorAtual,2)) : 'Ainda não definido';
   });
 }
-function validarValorKwh() {
-  var v1 = document.getElementById('vk-valor').value.trim();
-  var v2 = document.getElementById('vk-valor-conf').value.trim();
-  document.getElementById('btn-vk-salvar').disabled = !(v1 && v2 && v1 === v2);
+// Recalcula a cada tecla — o campo C nunca é digitado, só mostra o
+// resultado de A ÷ B, atualizado ao vivo.
+function recalcularValorKwh() {
+  var a = parseFloat(document.getElementById('vk-valor-boleto').value.replace(/\./g,'').replace(',','.'));
+  var b = parseFloat(document.getElementById('vk-qtd-kwh').value.replace(/\./g,'').replace(',','.'));
+  var calcEl = document.getElementById('vk-calculado');
+  var btn = document.getElementById('btn-vk-salvar');
+  if (isNaN(a) || isNaN(b) || a <= 0 || b <= 0) {
+    calcEl.textContent = '–';
+    btn.disabled = true;
+    return;
+  }
+  var c = a / b;
+  calcEl.textContent = 'R$ ' + fmtBR(c, 4) + ' /kWh';
+  btn.disabled = false;
 }
 function salvarValorKwh() {
-  var v1 = document.getElementById('vk-valor').value.trim();
-  var v2 = document.getElementById('vk-valor-conf').value.trim();
+  var valorBoleto = document.getElementById('vk-valor-boleto').value.trim();
+  var qtdKwh = document.getElementById('vk-qtd-kwh').value.trim();
+  var calculadoTxt = document.getElementById('vk-calculado').textContent;
   var erroEl = document.getElementById('vk-erro'), msgEl = document.getElementById('vk-msg'), btn = document.getElementById('btn-vk-salvar');
   erroEl.classList.add('oculto'); msgEl.classList.add('oculto');
-  if (v1 !== v2) { erroEl.textContent = 'Os valores não coincidem.'; erroEl.classList.remove('oculto'); return; }
+  if (!confirm('Confirma o valor do kWh este mês: ' + calculadoTxt + '?')) return;
   btn.disabled = true; btn.querySelector('.btn-txt').classList.add('oculto'); btn.querySelector('.btn-load').classList.remove('oculto');
-  api('definirValorKwhMensal', { valor: v1, valorConfirmacao: v2 })
+  api('definirValorKwhMensal', { valorBoleto: valorBoleto, qtdKwh: qtdKwh })
     .then(function(res) {
       btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
-      if (!res || res.erro) { erroEl.textContent = res ? res.erro : 'Erro ao salvar.'; erroEl.classList.remove('oculto'); validarValorKwh(); return; }
-      msgEl.textContent = '✅ Valor de ' + res.mes + ' definido: R$ ' + fmtBR(res.valor,2) + ' /kWh'; msgEl.classList.remove('oculto');
-      document.getElementById('vk-atual').textContent = 'R$ ' + fmtBR(res.valor,2);
+      if (!res || res.erro) { erroEl.textContent = res ? res.erro : 'Erro ao salvar.'; erroEl.classList.remove('oculto'); recalcularValorKwh(); return; }
+      msgEl.textContent = '✅ Valor de ' + res.mes + ' definido: R$ ' + fmtBR(res.valorCalculado,4) + ' /kWh'; msgEl.classList.remove('oculto');
+      document.getElementById('vk-atual').textContent = 'R$ ' + fmtBR(res.valorCalculado,4);
     })
     .catch(function(err) {
       btn.querySelector('.btn-txt').classList.remove('oculto'); btn.querySelector('.btn-load').classList.add('oculto');
-      erroEl.textContent = 'Falha: ' + (err ? err.message : 'tente novamente'); erroEl.classList.remove('oculto'); validarValorKwh();
+      erroEl.textContent = 'Falha: ' + (err ? err.message : 'tente novamente'); erroEl.classList.remove('oculto'); recalcularValorKwh();
     });
+}
+
+// ══ FOTO DE AJUDA (mostra onde achar o valor na fatura) ══════
+function abrirFotoAjuda(nomeImagem) {
+  document.getElementById('foto-ajuda-erro').classList.add('oculto');
+  document.getElementById('foto-ajuda-img').src = nomeImagem;
+  document.getElementById('modal-foto-ajuda').classList.remove('oculto');
+}
+function fecharFotoAjuda() {
+  document.getElementById('modal-foto-ajuda').classList.add('oculto');
+  document.getElementById('foto-ajuda-img').src = '';
 }
 
 // ══ ADMIN — ADICIONAR VAGA ═══════════════════════════════════
@@ -1812,5 +1850,4 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
-
 
