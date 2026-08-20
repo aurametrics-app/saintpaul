@@ -39,6 +39,7 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
 .campo{display:flex;flex-direction:column;gap:8px}
 .campo label{font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--k-green)}
 .campo input,.campo select{font-size:16px;font-family:var(--f-body);padding:11px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--txt);outline:none;width:100%;-webkit-appearance:none;transition:border-color .2s,background .2s,box-shadow .2s}
+.campo select option{background:#111;color:var(--txt)}
 .campo input::placeholder{color:var(--txt-dim)}
 .campo input:focus,.campo select:focus{border-color:var(--border-focus);background:rgba(var(--k-green-rgb),.06);box-shadow:0 0 0 3px rgba(var(--k-green-rgb),.1)}
 .input-wrap{position:relative}
@@ -1850,3 +1851,5 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
+
+
