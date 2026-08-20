@@ -18,9 +18,12 @@ body{font-family:var(--f-body);background:var(--bg);color:var(--txt);line-height
 .hero{padding:48px 24px 32px;text-align:center;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(var(--k-green-rgb),.15) 0%,transparent 70%)}
 .hero h1{font-family:var(--f-display);font-size:44px;letter-spacing:.03em;color:var(--k-green)}
 .hero p{color:var(--txt-sub);font-size:15px;margin-top:6px}
-nav{position:sticky;top:0;z-index:50;background:rgba(13,13,13,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:8px;padding:12px;flex-wrap:wrap}
+nav{position:sticky;top:0;z-index:50;background:rgba(13,13,13,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:8px;padding:12px;flex-wrap:wrap}
 nav a{color:var(--txt-sub);text-decoration:none;font-size:13px;font-weight:600;padding:8px 16px;border-radius:20px;border:1px solid var(--border);transition:all .15s}
 nav a:hover,nav a.ativo{color:var(--k-green);border-color:rgba(var(--k-green-rgb),.4);background:rgba(var(--k-green-rgb),.08)}
+nav a.voltar{color:var(--bg);background:var(--k-green);border-color:var(--k-green);font-weight:700;margin-right:8px}
+nav a.voltar:hover{background:var(--k-green);opacity:.9}
+nav .separador{width:1px;height:20px;background:var(--border);margin:0 4px}
 .secao{max-width:900px;margin:0 auto;padding:56px 24px}
 .secao-titulo{font-family:var(--f-display);font-size:32px;letter-spacing:.03em;color:var(--k-green);margin-bottom:8px}
 .secao-sub{color:var(--txt-sub);font-size:15px;margin-bottom:36px;max-width:640px}
@@ -51,6 +54,8 @@ footer a{color:var(--txt-sub)}
 </div>
 
 <nav>
+  <a href="index.html" class="voltar">← Voltar ao Login</a>
+  <div class="separador"></div>
   <a href="#morador">👤 Área do Morador</a>
   <a href="#admin">⚙️ Área do Administrador</a>
 </nav>
