@@ -124,8 +124,8 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
 .mes-card-header:active{background:rgba(255,255,255,.03)}
 .mes-nome{font-family:var(--f-display);font-size:20px;letter-spacing:.03em;color:var(--txt)}
 .mes-resumo{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-.mes-consumo{font-size:15px;font-weight:700;color:var(--k-green)}
-.mes-custo{font-size:13px;color:var(--txt-sub)}
+.mes-consumo{font-size:13px;color:var(--txt-sub)}
+.mes-custo{font-size:15px;font-weight:700;color:var(--k-green)}
 .mes-aguardando{font-size:11px;color:#ffc800;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
 .mes-detalhe{display:none;border-top:1px solid var(--border);padding:10px 16px 14px}
 .mes-detalhe.aberto{display:block}
@@ -928,7 +928,7 @@ function renderConsumosResultado(elId, res) {
         return '<div class="mes-card" style="margin-bottom:10px">' +
           '<div class="mes-card-header" onclick="toggleMes(this, ' + idx + ', \'' + elId + '\')">' +
             '<div class="mes-nome">' + m.mes + '</div>' +
-            '<div class="mes-resumo"><div class="mes-consumo">' + fmtBR(m.total,2) + ' kWh</div>' + custoHtml + '</div>' +
+            '<div class="mes-resumo">' + custoHtml + '<div class="mes-consumo">' + fmtBR(m.total,2) + ' kWh</div></div>' +
           '</div>' +
           '<div class="mes-detalhe" id="mes-det-' + elId + '-' + idx + '">' + itensHtml + '</div>' +
         '</div>';
@@ -1850,4 +1850,3 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
-
