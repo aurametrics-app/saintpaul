@@ -325,8 +325,8 @@ body{height:100%;width:100%;font-family:var(--f-body);background:var(--bg);color
       <div class="campo"><label>Última leitura registrada</label><div class="leitura-vaga-display" id="rl-ultima">–</div></div>
       <div class="campo">
         <label>Leitura atual do medidor (kWh)</label>
-        <input type="text" id="rl-leitura" placeholder="Ex: 1.999,9" inputmode="decimal">
-        <div class="helper-text-leitura">Digite o valor exibido no medidor agora. Use vírgula para decimais.</div>
+        <input type="text" id="rl-leitura" placeholder="Ex: 1.999" inputmode="numeric">
+        <div class="helper-text-leitura">Digite o valor exibido no medidor agora, sem casas decimais.</div>
       </div>
       <div id="rl-erro" class="msg-erro oculto"></div>
       <button class="btn-primary" id="btn-rl-enviar" onclick="enviarLeituraMensal()">
@@ -916,10 +916,10 @@ function renderConsumosResultado(elId, res) {
             '<div class="hist-esq">' +
               '<div class="hist-vaga-tag">Vaga ' + it.vaga + '</div>' +
               '<div class="hist-data">Início: ' + (it.dataAnterior||'–') + '</div>' +
-              '<div class="hist-leitura">Leitura: ' + fmtBR(it.leituraAnterior,2) + ' kWh</div>' +
+              '<div class="hist-leitura">Leitura: ' + fmtBR(it.leituraAnterior,0) + ' kWh</div>' +
               '<div class="hist-data">Fim: ' + (it.dataAtual||'–') + '</div>' +
-              '<div class="hist-leitura">Leitura: ' + fmtBR(it.leituraAtual,2) + ' kWh</div>' +
-              '<div class="hist-consumo-linha">Consumo: ' + fmtBR(it.consumo,2) + ' kWh</div>' +
+              '<div class="hist-leitura">Leitura: ' + fmtBR(it.leituraAtual,0) + ' kWh</div>' +
+              '<div class="hist-consumo-linha">Consumo: ' + fmtBR(it.consumo,0) + ' kWh</div>' +
               '<div style="display:flex;flex-direction:column;gap:2px">' + fotoLinkInicio + fotoLinkFim + '</div>' +
             '</div>' +
             '<div class="hist-dir-wrap">' +
@@ -931,7 +931,7 @@ function renderConsumosResultado(elId, res) {
         return '<div class="mes-card" style="margin-bottom:10px">' +
           '<div class="mes-card-header" onclick="toggleMes(this, ' + idx + ', \'' + elId + '\')">' +
             '<div class="mes-nome">' + m.mes + '</div>' +
-            '<div class="mes-resumo">' + custoHtml + '<div class="mes-consumo">' + fmtBR(m.total,2) + ' kWh</div></div>' +
+            '<div class="mes-resumo">' + custoHtml + '<div class="mes-consumo">' + fmtBR(m.total,0) + ' kWh</div></div>' +
           '</div>' +
           '<div class="mes-detalhe" id="mes-det-' + elId + '-' + idx + '">' + itensHtml + '</div>' +
         '</div>';
@@ -1488,7 +1488,7 @@ function processarQRCode(texto) {
       _vagaAtualLeitura = vagaId;
       _chaveLeituraAtual = gerarChaveIdempotencia(); // 1 chave por vaga escaneada — reenvio reusa a mesma
       document.getElementById('rl-vaga').textContent = 'Apto ' + res.apto + ' · Vaga ' + res.numero;
-      document.getElementById('rl-ultima').textContent = res.temLeitura ? (fmtBR(res.ultimaLeitura,2) + ' kWh em ' + res.ultimaData) : 'Primeira leitura (baseline)';
+      document.getElementById('rl-ultima').textContent = res.temLeitura ? (fmtBR(res.ultimaLeitura,0) + ' kWh em ' + res.ultimaData) : 'Primeira leitura (baseline)';
       document.getElementById('rl-leitura').value = '';
       document.getElementById('rl-erro').classList.add('oculto');
       mostrarTela('tela-registrar-leitura');
@@ -1528,7 +1528,7 @@ function abrirTelaFotoMedidor(res) {
   _idLeituraPendente = res.idLeitura;
   var resumo = res.baseline
     ? 'Primeira leitura registrada (referência). Consumo aparecerá a partir da próxima leitura.'
-    : 'Consumo do período: ' + fmtBR(res.consumo,2) + ' kWh.';
+    : 'Consumo do período: ' + fmtBR(res.consumo,0) + ' kWh.';
   document.getElementById('foto-resumo').textContent = resumo;
   document.getElementById('foto-status').textContent = '';
   document.getElementById('foto-status').className = '';
