@@ -1708,12 +1708,15 @@ function carregarVagasExistentes() {
     el.innerHTML = res.vagas.map(function(v) {
       var inativa = v.status === 'Inativa';
       var tagStatus = inativa ? '<span style="font-size:11px;color:var(--txt-sub);margin-left:6px">(desativada)</span>' : '';
-      var botao = inativa
+      var botoes = inativa
         ? '<button class="btn-remover" style="color:var(--k-green);border-color:rgba(var(--k-green-rgb),.3)" data-key="' + v.vagaKey + '" onclick="reativarVaga(this.dataset.key)">Reativar</button>'
-        : '<button class="btn-remover" data-key="' + v.vagaKey + '" onclick="desativarVaga(this.dataset.key)">Desativar</button>';
+        : '<div style="display:flex;gap:6px">' +
+            '<button class="btn-remover" style="color:#ffc800;border-color:rgba(255,200,0,.3)" data-key="' + v.vagaKey + '" onclick="trocarMedidor(this.dataset.key)">🔧 Trocar Medidor</button>' +
+            '<button class="btn-remover" data-key="' + v.vagaKey + '" onclick="desativarVaga(this.dataset.key)">Desativar</button>' +
+          '</div>';
       return '<div class="vaga-gerenciar-item" style="' + (inativa ? 'opacity:.6' : '') + '">' +
         '<span class="vaga-gerenciar-nome">Vaga ' + v.numero + tagStatus + '</span>' +
-        botao +
+        botoes +
       '</div>';
     }).join('');
   });
@@ -1729,6 +1732,12 @@ function reativarVaga(vagaKey) {
   api('reativarVagaAdmin', { vagaId: vagaKey })
     .then(function(res) { if (res && res.erro) { alert('Erro: ' + res.erro); return; } carregarVagasExistentes(); carregarTodasVagas(); })
     .catch(function() { alert('Falha ao reativar. Tente novamente.'); });
+}
+function trocarMedidor(vagaKey) {
+  if (!confirm('Confirma a troca do medidor da ' + vagaKey.replace('VAGA_','Vaga ').replace('_',' · Apto ') + '?\n\nA PRÓXIMA leitura dessa vaga vai virar uma nova referência (sem comparar com o valor acumulado do medidor antigo). Todo o histórico anterior continua salvo e visível, só não entra mais no cálculo de consumo daqui pra frente.')) return;
+  api('trocarMedidorVaga', { vagaId: vagaKey })
+    .then(function(res) { if (res && res.erro) { alert('Erro: ' + res.erro); return; } alert('✅ Pronto. A próxima leitura dessa vaga já começa do zero.'); })
+    .catch(function() { alert('Falha ao registrar a troca. Tente novamente.'); });
 }
 function salvarVagaNova() {
   var apto = document.getElementById('av-apto').value;
@@ -1869,5 +1878,4 @@ document.addEventListener('keydown',function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </body>
 </html>
-
 
