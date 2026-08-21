@@ -1683,9 +1683,14 @@ function carregarTodasVagas() {
     if (!res || res.erro) { el.innerHTML = '<div class="hist-vazio">Erro ao carregar.</div>'; return; }
     if (!res.apartamentos || !res.apartamentos.length) { el.innerHTML = '<div class="hist-vazio">Nenhuma vaga cadastrada ainda.</div>'; return; }
     el.innerHTML = res.apartamentos.map(function(a) {
-      var badges = a.vagas.map(function(v) { return '<span class="vaga-existente-badge">Vaga ' + v.numero + '</span>'; }).join('');
+      var ativas = a.vagas.filter(function(v) { return v.status !== 'Inativa'; }).length;
+      var badges = a.vagas.map(function(v) {
+        var inativa = v.status === 'Inativa';
+        var estilo = inativa ? 'opacity:.5;text-decoration:line-through' : '';
+        return '<span class="vaga-existente-badge" style="' + estilo + '">Vaga ' + v.numero + (inativa ? ' (inativa)' : '') + '</span>';
+      }).join('');
       return '<div class="apto-vagas-grupo">' +
-        '<div class="apto-vagas-titulo">Apto ' + a.apto + ' <span style="color:var(--txt-sub);font-weight:400">(' + a.vagas.length + (a.vagas.length===1?' vaga':' vagas') + ')</span></div>' +
+        '<div class="apto-vagas-titulo">Apto ' + a.apto + ' <span style="color:var(--txt-sub);font-weight:400">(' + ativas + (ativas===1?' vaga ativa':' vagas ativas') + ')</span></div>' +
         '<div class="vagas-existentes-linha">' + badges + '</div>' +
       '</div>';
     }).join('');
@@ -1701,18 +1706,29 @@ function carregarVagasExistentes() {
   api('getVagasApartamento', { apartamento: apto }).then(function(res) {
     if (!res || res.erro || !res.vagas || !res.vagas.length) { el.innerHTML = '<span class="vaga-existente-badge">Nenhuma vaga cadastrada ainda</span>'; return; }
     el.innerHTML = res.vagas.map(function(v) {
-      return '<div class="vaga-gerenciar-item">' +
-        '<span class="vaga-gerenciar-nome">Vaga ' + v.numero + '</span>' +
-        '<button class="btn-remover" data-key="' + v.vagaKey + '" onclick="desativarVaga(this.dataset.key)">Desativar</button>' +
+      var inativa = v.status === 'Inativa';
+      var tagStatus = inativa ? '<span style="font-size:11px;color:var(--txt-sub);margin-left:6px">(desativada)</span>' : '';
+      var botao = inativa
+        ? '<button class="btn-remover" style="color:var(--k-green);border-color:rgba(var(--k-green-rgb),.3)" data-key="' + v.vagaKey + '" onclick="reativarVaga(this.dataset.key)">Reativar</button>'
+        : '<button class="btn-remover" data-key="' + v.vagaKey + '" onclick="desativarVaga(this.dataset.key)">Desativar</button>';
+      return '<div class="vaga-gerenciar-item" style="' + (inativa ? 'opacity:.6' : '') + '">' +
+        '<span class="vaga-gerenciar-nome">Vaga ' + v.numero + tagStatus + '</span>' +
+        botao +
       '</div>';
     }).join('');
   });
 }
 function desativarVaga(vagaKey) {
-  if (!confirm('Desativar a ' + vagaKey.replace('VAGA_','Vaga ').replace('_',' · Apto ') + '? O histórico de leituras é preservado, mas ela some da lista de vagas ativas e o número fica disponível para uma vaga nova.')) return;
+  if (!confirm('Desativar a ' + vagaKey.replace('VAGA_','Vaga ').replace('_',' · Apto ') + '? O histórico de leituras é preservado, e ela continua aparecendo aqui (marcada como desativada) com opção de reativar depois. O número dela NÃO é reaproveitado por "Adicionar Vaga" — só reativando explicitamente aqui.')) return;
   api('desativarVagaAdmin', { vagaId: vagaKey })
     .then(function(res) { if (res && res.erro) { alert('Erro: ' + res.erro); return; } carregarVagasExistentes(); carregarTodasVagas(); })
     .catch(function() { alert('Falha ao desativar. Tente novamente.'); });
+}
+function reativarVaga(vagaKey) {
+  if (!confirm('Reativar a ' + vagaKey.replace('VAGA_','Vaga ').replace('_',' · Apto ') + '? Ela volta a aparecer pra leitura, e a próxima leitura vai calcular o consumo a partir da última leitura registrada antes dela ter sido desativada.')) return;
+  api('reativarVagaAdmin', { vagaId: vagaKey })
+    .then(function(res) { if (res && res.erro) { alert('Erro: ' + res.erro); return; } carregarVagasExistentes(); carregarTodasVagas(); })
+    .catch(function() { alert('Falha ao reativar. Tente novamente.'); });
 }
 function salvarVagaNova() {
   var apto = document.getElementById('av-apto').value;
